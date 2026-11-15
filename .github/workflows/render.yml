@@ -1,17 +1,22 @@
-name: Render Dashboard (every 5 min)
+name: Render Dashboard (long-runner)
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/5 * * * *"   # 兜底重启 (GitHub cron 不可靠, 仅作保险)
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: write
+
+concurrency:
+  group: render
+  cancel-in-progress: true
 
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 350
     env:
       TZ: Asia/Shanghai
       LATITUDE: "31.813"
@@ -45,24 +50,41 @@ jobs:
           pip install -e .
           python -m playwright install chromium --with-deps
 
-      - name: Render dashboard PNG
-        run: python render_once.py
-
-      - name: Upload to HF Static Space
+      # 长驻渲染循环: 一次任务连续渲染 ~6 小时, 每 ~5 分钟一张 (68 轮),
+      # 不依赖 GitHub cron 的准时性。单轮失败跳过继续 (连续失败自动退出由
+      # render_once 内部重试兜底; 整体超时/故障靠兜底 cron 或 self-dispatch 重启)。
+      - name: Render loop
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           python -m pip install huggingface_hub
-          python - <<'EOF'
+          for i in $(seq 1 68); do
+            echo "=== round $i $(date -u +%H:%M:%S) ==="
+            python render_once.py || echo "render failed this round, continuing"
+            python - <<'EOF'
           import os
           from huggingface_hub import HfApi
           api = HfApi(token=os.environ["HF_TOKEN"])
-          api.upload_file(
-              repo_id=os.environ["HF_SPACE_ID"],
-              repo_type="space",
-              path_or_fileobj="dashboard.png",
-              path_in_repo="dashboard.png",
-              commit_message="auto render",
-          )
-          print("uploaded")
+          try:
+              api.upload_file(
+                  repo_id=os.environ["HF_SPACE_ID"],
+                  repo_type="space",
+                  path_or_fileobj="dashboard.png",
+                  path_in_repo="dashboard.png",
+                  commit_message="auto render",
+              )
+              print("uploaded")
+          except Exception as e:
+              print("upload failed:", e)
           EOF
+            [ "$i" = "68" ] || sleep 240
+          done
+
+      # 任务结束前自我续期: 用 DISPATCH_TOKEN (细粒度 PAT, 仅本仓库 Actions:write)
+      # 触发下一个 6 小时任务。没有该 token 时这一步失败被忽略, 靠兜底 cron 重启。
+      - name: Self-dispatch next runner
+        env:
+          GH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
+        run: |
+          gh api repos/wangruink/kindle-dashboard-server/actions/workflows/render.yml/dispatches -f ref=master || \
+          echo "self-dispatch failed (DISPATCH_TOKEN 未配置?) - 兜底 cron 会重启"
