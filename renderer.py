@@ -24,7 +24,12 @@ def capture_dashboard(url):
     scale_factor = Config.SCREEN_WIDTH / DESIGN_WIDTH
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        # 容器内存优化: 单进程小内存环境必需的 flags
+        browser = p.chromium.launch(headless=True, args=[
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+        ])
         
         # We set the viewport to the DESIGN resolution so the CSS layout remains identical.
         # We set device_scale_factor so the browser renders at a higher/lower resolution

@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Set default timezone
-ENV TZ=Asia/Singapore
+ENV TZ=Asia/Shanghai
 
 WORKDIR /app
 

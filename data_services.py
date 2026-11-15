@@ -16,6 +16,17 @@ import math
 
 from config import Config
 
+# 金融数据走代理（雅虎财经国内直连不通）；FINANCE_PROXY 为空则不启用
+if getattr(Config, "FINANCE_PROXY", ""):
+    try:
+        try:
+            yf.config.network.proxy = Config.FINANCE_PROXY  # yfinance >= 1.x
+        except AttributeError:
+            yf.set_config(proxy=Config.FINANCE_PROXY)  # 旧版回退
+        print(f"yfinance proxy enabled: {Config.FINANCE_PROXY}")
+    except Exception as e:
+        print(f"yfinance proxy config failed: {e}")
+
 # --- Caching Utility ---
 class SimpleCache:
     def __init__(self, ttl_seconds):
@@ -384,6 +395,17 @@ def get_external_news(url):
             return []
         
         items = resp.json()
+
+        # 兼容 t0saki kindledash 风格的 {"items": [...]} 聚合格式（中文 AI/科技新闻）
+        if isinstance(items, dict) and isinstance(items.get("items"), list):
+            raw = sorted(items["items"], key=lambda x: x.get("gravity_score") or 0, reverse=True)
+            items = [
+                {
+                    "title": (it.get("l2_title_zh") or it.get("title") or "").strip(),
+                    "meta": (it.get("category") or it.get("source_name") or "").strip(),
+                }
+                for it in raw
+            ]
         
         # Format for display - add is_external flag
         display_stories = []

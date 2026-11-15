@@ -86,6 +86,16 @@
 
                 <!-- Bottom: Reserved for local time (rendered by Kindle) -->
                 <div id="local-time-placeholder" class="flex-grow flex items-center justify-center">
+                    <!-- 服务端时钟: 渲染截图时由内联 JS 写入当前时间，Kindle 端每分钟拉图即得走时 -->
+                    <div id="server-clock" class="text-[9rem] font-black leading-none tracking-tight tabular-nums"></div>
+                    <script>
+                        (function () {
+                            var el = document.getElementById('server-clock');
+                            if (!el) return;
+                            var d = new Date();
+                            el.textContent = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+                        })();
+                    </script>
                 </div>
             </div>
 

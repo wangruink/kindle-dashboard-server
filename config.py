@@ -38,6 +38,8 @@ class Config:
     CACHE_TTL_RENDER = int(os.environ.get("CACHE_TTL_RENDER", 60))        # 1 minute
 
     # --- Finance Configuration ---
+    # 代理地址（雅虎财经国内直连不通）。留空则直连。
+    FINANCE_PROXY = os.environ.get("FINANCE_PROXY", "")
     # Expected format: JSON list of dicts or just a comma-separated list of symbols for defaults
     # If using formatted string in env: '[{"symbol": "SGDCNY=X", "name": "SGD/CNY"}, ...]'
     # OR simple comma separated: "SGDCNY=X,BTC-USD" (will use symbol as name)
