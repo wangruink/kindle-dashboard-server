@@ -1,0 +1,68 @@
+name: Render Dashboard (every 5 min)
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TZ: Asia/Shanghai
+      LATITUDE: "31.813"
+      LONGITUDE: "117.227"
+      CITY_NAME: Hefei
+      TIMEZONE: Asia/Shanghai
+      LANGUAGE: CN
+      HOLIDAY_COUNTRY: CN
+      SCREEN_WIDTH: "1448"
+      SCREEN_HEIGHT: "1072"
+      NEWS_EXTERNAL_URL: https://kindledash.t0saki.com/dashboard.json
+      FINANCE_PROXY: ""
+      FINANCE_TICKERS: '[{"symbol": "USDCNY=X", "name": "USD/CNY"}, {"symbol": "000300.SS", "name": "沪深300"}, {"symbol": "^IXIC", "name": "NASDAQ"}]'
+      HF_SPACE_ID: worrysc/kindle-dashboard
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          python -m playwright install chromium --with-deps
+
+      - name: Render dashboard PNG
+        run: python render_once.py
+
+      - name: Upload to HF Static Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python -m pip install huggingface_hub
+          python - <<'EOF'
+          import os
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          api.upload_file(
+              repo_id=os.environ["HF_SPACE_ID"],
+              repo_type="space",
+              path_or_fileobj="dashboard.png",
+              path_in_repo="dashboard.png",
+              commit_message="auto render",
+          )
+          print("uploaded")
+          EOF
