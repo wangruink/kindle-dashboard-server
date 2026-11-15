@@ -653,14 +653,35 @@ WEEKDAYS_CN = {
     "Sunday": "星期日"
 }
 
+LUNAR_MONTH_CN = {1: '正', 2: '二', 3: '三', 4: '四', 5: '五', 6: '六',
+                  7: '七', 8: '八', 9: '九', 10: '十', 11: '冬', 12: '腊'}
+
+
+def _lunar_day_cn(day):
+    """农历日转汉字: 初一..初十 / 十一..十九 / 二十 / 廿一..廿九 / 三十"""
+    digits = '一二三四五六七八九十'
+    if day == 10:
+        return '初十'
+    if day == 20:
+        return '二十'
+    if day == 30:
+        return '三十'
+    if day < 10:
+        return '初' + digits[day - 1]
+    if day < 20:
+        return '十' + digits[day - 11]
+    return '廿' + digits[day - 21]
+
+
 def get_calendar_info():
     now = datetime.datetime.now(ZoneInfo(Config.TIMEZONE))
     lunar = LunarDate.fromSolarDate(now.year, now.month, now.day)
-    
+
     if Config.LANGUAGE == 'EN':
          lunar_str = f"Lunar {lunar.month}/{lunar.day}"
     else:
-         lunar_str = f"农历 {lunar.month}月{lunar.day}日"
+         leap = '闰' if getattr(lunar, 'isLeapMonth', False) else ''
+         lunar_str = f"农历 {leap}{LUNAR_MONTH_CN[lunar.month]}月{_lunar_day_cn(lunar.day)}"
     
     # Use config country
     try:
